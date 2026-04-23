@@ -1,15 +1,18 @@
-# Marketplace Blog API
+# FastAPI Marketplace Blog API
 
 API-сервис для блога на основе **FastAPI + SQLAlchemy (async)** с поддержкой:
-- JWT-аутентификации (через HTTP-only cookie);
+- JWT-аутентификации (через cookie);
 - управления пользователями;
 - CRUD-операций с категориями и постами;
-- полнотекстового поиска по заголовку и содержанию (PostgreSQL full-text search);
-- загрузки изображений через MinIO (S3-совместимое хранилище);
-- архивации удалённых постов;
-- асинхронной отправки email через Celery + RabbitMQ
+- поиска по тексту (PostgreSQL full-text search);
+- загрузки изображений через S3 presigned URLs;
+- архивации удалённых постов.
 
-- ## 🚀 Установка и запуск
+---
+
+## Установка и запуск
+
+```
 # Настрой переменные окружения
 cp .env.example .env
 # Укажи DATABASE_URL, S3_ACCESS_KEY, S3_SECRET_KEY и т.д.
@@ -19,36 +22,47 @@ docker-compose up --build
 
 # Открой Swagger UI
 http://localhost:8000/docs
+```
+| Категория      | Эндпоинт             | Метод  | Описание                               | Авторизация |
+| -------------- | -------------------- | ------ | -------------------------------------- | ----------- |
+| **Auth**       | `/auth/register`     | POST   | Регистрация пользователя               | ❌           |
+|                | `/auth/login`        | POST   | Логин, установка access/refresh cookie | ❌           |
+|                | `/auth/logout`       | POST   | Выход (очистка cookie)                 | ✅           |
+| **Categories** | `/categories/create` | POST   | Создание категории                     | ✅           |
+|                | `/categories/`       | GET    | Получение списка категорий             | ✅           |
+| **Posts**      | `/posts/create`      | POST   | Создание поста                         | ✅           |
+|                | `/posts/`            | GET    | Получение списка постов                | ✅           |
+|                | `/posts/{post_id}`   | PUT    | Обновление поста                       | ✅           |
+|                | `/posts/{post_id}`   | DELETE | Удаление поста (в архив)               | ✅           |
+| **Images**     | `/image/presigned`   | GET    | Получить presigned URL для загрузки    | ✅           |
 
-com
-📡 API Эндпоинты
-Категория	Эндпоинт	Метод	Описание	Авторизация
-Auth	/auth/register	POST	Регистрация пользователя	❌
-/auth/login	POST	Вход (установка cookie)	❌
-/auth/logout	POST	Выход (очистка cookie)	✅
-Categories	/categories	GET	Получение списка категорий	✅
-/categories	POST	Создание категории	✅
-Posts	/posts	GET	Получение списка постов (с поиском и фильтрацией)	✅
-/posts/{post_id}	GET	Получение поста по ID	✅
-/posts	POST	Создание поста	✅
-/posts/{post_id}	PUT	Обновление поста	✅
-/posts/{post_id}	DELETE	Удаление поста (в архив)	✅
-Images	/images/upload	POST	Загрузка изображения в MinIO	✅
+### Аутентификация
 
-📝 Примеры запросов и ответов
-Регистрация пользователя
-POST /auth/register
+Авторизация реализована через JWT-токены в HTTP-only cookies:
 
-json
+access_token — действует короткое время;
+
+
+Пример cookie-ответа:
+```json
+{
+  "message": "authenticated"
+}
+```
+### Примеры запросов и ответов
+
+#### Регистрация пользователя
+
+POST `/auth/register`
+```json
 {
   "email": "user@example.com",
   "username": "john_doe",
   "password": "strongpassword123"
 }
-
-Ответ (201 Created):
-
-json
+```
+Ответ:
+```json
 {
   "id": 1,
   "email": "user@example.com",
@@ -56,63 +70,56 @@ json
   "created_at": "2026-01-23T10:00:00.000Z",
   "is_active": true
 }
+```
+#### Вход (login)
 
-Вход (Login)
-POST /auth/login
-
-json
+POST `/auth/login`
+```json
 {
   "email": "user@example.com",
   "password": "strongpassword123"
 }
-
-Ответ (200 OK):
-
-json
+```
+Ответ:
+```json
 {
   "message": "Login successful",
   "user_id": 1
 }
+```
+`После успешного входа токены access_token и refresh_token сохраняются в cookies.`
+#### Выход (logout)
 
-Токен access_token автоматически сохраняется в HTTP-only cookie.
-
-Выход (Logout)
-POST /auth/logout
-
-Ответ (200 OK):
-
-json
+POST `/auth/logout`
+Ответ:
+```json
 {
   "message": "Logout successful"
 }
+```
+#### Создание категории
 
-Cookie с токеном удаляется.
-
-Создание категории
-POST /categories
-
-json
+POST `/categories/create`
+```json
 {
   "name": "Technology",
   "description": "Posts about technology and innovation"
 }
-
-Ответ (201 Created):
-
-json
+```
+Ответ:
+```json
 {
   "id": 1,
   "name": "Technology",
   "description": "Posts about technology and innovation",
   "created_at": "2026-01-23T10:00:00.000Z"
 }
+```
+#### Получение списка категорий
 
-Получение списка категорий
-GET /categories
-
-Ответ (200 OK):
-
-json
+GET `/categories/`
+Ответ:
+```json
 {
   "items": [
     {
@@ -124,21 +131,20 @@ json
   ],
   "total": 1
 }
+```
+#### Создание поста
 
-Создание поста
-POST /posts
-
-json
+POST `/posts/create`
+```json
 {
   "title": "The Future of AI",
   "content": "Artificial intelligence is transforming our world...",
   "category_id": 1,
   "image_url": "https://minio.example.com/uploads/image.jpg"
 }
-
-Ответ (201 Created):
-
-json
+```
+Ответ:
+```json
 {
   "id": 1,
   "title": "The Future of AI",
@@ -149,13 +155,12 @@ json
   "created_at": "2026-01-23T10:05:00.000Z",
   "updated_at": "2026-01-23T10:05:00.000Z"
 }
+```
+#### Получение постов (с фильтрацией и поиском)
 
-Получение постов (с поиском и фильтрацией)
-GET /posts?search=artificial&category_id=1&page=1&page_size=10
-
-Ответ (200 OK):
-
-json
+GET `/posts/?search=ai&category_id=1&page_number=1&page_size=10`
+Ответ:
+```json
 {
   "items": [
     {
@@ -174,29 +179,18 @@ json
   "page_size": 10,
   "total_pages": 1
 }
+```
+#### Обновление поста
 
-Параметры поиска:
-
-search - поиск по заголовку и содержанию (полнотекстовый)
-
-category_id - фильтр по категории
-
-page - номер страницы
-
-page_size - элементов на странице (макс. 50)
-
-Обновление поста
-PUT /posts/1
-
-json
+PUT `/posts/1`
+```json
 {
   "title": "The Future of AI — 2026 Edition",
   "content": "Updated content with new insights..."
 }
-
-Ответ (200 OK):
-
-json
+```
+Ответ:
+```json
 {
   "id": 1,
   "title": "The Future of AI — 2026 Edition",
@@ -207,38 +201,28 @@ json
   "created_at": "2026-01-23T10:05:00.000Z",
   "updated_at": "2026-01-23T10:10:00.000Z"
 }
+```
+#### Удаление поста (перенос в архив)
 
-Удаление поста (перенос в архив)
-DELETE /posts/1
-
-Ответ (204 No Content) - тело ответа пустое
+DELETE `/posts/1`
 
 Пост удаляется из основной таблицы и сохраняется в deleted_posts с timestamp удаления.
 
-Загрузка изображения
-POST /images/upload
+#### Загрузка изображения
 
+
+POST /images/upload
 Request: multipart/form-data с полем file
 
-Ответ (201 Created):
-
-json
+Ответ:
+```json
 {
   "image_url": "http://localhost:9000/marketplace-blog/uploads/abc123_image.jpg"
 }
+```
 
-Запуск тестов
-# 1. Настройте тестовое окружение
-cp .env.test.example .env.test
+### Tехнологии
 
-# 2. Убедитесь что тестовая БД запущена
-docker ps | grep test_db
-
-# 3. Запустите тесты
-pytest -v
-
-
-Tехнологии
 🐍 FastAPI
 
 🗄️ PostgreSQL + SQLAlchemy (async)
