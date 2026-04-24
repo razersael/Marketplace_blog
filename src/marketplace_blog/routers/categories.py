@@ -14,10 +14,10 @@ router = APIRouter(prefix="/categories", tags=["Категории"])
 
 
 @router.get("", response_model=CategoryListResponse)
-async def get_categories(db: AsyncSession = Depends(get_db)):
+async def get_categories(db: AsyncSession = Depends(get_db),
+                         user_id: int = Depends(get_current_user_id)):
     """Получение списка всех категорий (публичный)"""
-    category_service = CategoryService(db)
-    categories = await category_service.get_all_categories()
+    categories = await CategoryService.get_all_categories(db)
 
     return CategoryListResponse(items=categories, total=len(categories))
 
@@ -29,7 +29,9 @@ async def create_category(
     user_id: int = Depends(get_current_user_id),
 ):
     """Создание категории (только авторизованные)"""
-    category_service = CategoryService(db)
-    return await category_service.create_category(
-        name=category_data.name, description=category_data.description
+    category = await CategoryService.create_category(
+        db=db,
+        name=category_data.name,
+        description=category_data.description
     )
+    return category

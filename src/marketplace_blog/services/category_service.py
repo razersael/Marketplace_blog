@@ -8,14 +8,12 @@ from src.marketplace_blog.models.category import Category
 class CategoryService:
     """Сервис для работы с категориями"""
 
-    def __init__(self, db: AsyncSession):
-        self.db = db
-
+    @staticmethod
     async def create_category(
-        self, name: str, description: str | None = None
+        db: AsyncSession, name: str, description: str | None = None
     ) -> Category:
         """Создаёт новую категорию"""
-        existing = await self.db.execute(select(Category).where(Category.name == name))
+        existing = await db.execute(select(Category).where(Category.name == name))
         if existing.scalar_one_or_none():
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
@@ -24,20 +22,22 @@ class CategoryService:
 
         category = Category(name=name, description=description)
 
-        self.db.add(category)
-        await self.db.commit()
-        await self.db.refresh(category)
+        db.add(category)
+        await db.commit()
+        await db.refresh(category)
 
         return category
 
-    async def get_all_categories(self) -> list[Category]:
+    @staticmethod
+    async def get_all_categories(db: AsyncSession) -> list[Category]:
         """Возвращает все категории"""
-        result = await self.db.execute(select(Category).order_by(Category.name))
+        result = await db.execute(select(Category).order_by(Category.name))
         return result.scalars().all()
 
-    async def get_category_by_id(self, category_id: int) -> Category | None:
+    @staticmethod
+    async def get_category_by_id(db: AsyncSession, category_id: int) -> Category | None:
         """Находит категорию по ID"""
-        result = await self.db.execute(
+        result = await db.execute(
             select(Category).where(Category.id == category_id)
         )
         return result.scalar_one_or_none()

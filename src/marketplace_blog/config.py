@@ -6,6 +6,9 @@ class Settings(BaseSettings):
     app_name: str
     debug: bool
 
+    # Test
+    testing: bool
+
     # Database
     database_url: str
 

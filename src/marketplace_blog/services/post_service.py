@@ -11,11 +11,9 @@ from src.marketplace_blog.models.Post import DeletedPost, Post
 class PostService:
     """Сервис для работы с постами"""
 
-    def __init__(self, db: AsyncSession):
-        self.db = db
-
+    @staticmethod
     async def create_post(
-        self,
+        db: AsyncSession,
         title: str,
         content: str,
         category_id: int,
@@ -23,7 +21,7 @@ class PostService:
         image_url: str | None = None,
     ) -> Post:
         """Создаёт новый пост"""
-        category = await self.db.get(Category, category_id)
+        category = await db.get(Category, category_id)
         if not category:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
@@ -38,15 +36,16 @@ class PostService:
             image_url=image_url,
         )
 
-        self.db.add(post)
-        await self.db.commit()
-        await self.db.refresh(post)
+        db.add(post)
+        await db.commit()
+        await db.refresh(post)
 
         return post
 
-    async def get_post_by_id(self, post_id: int) -> Post:
+    @staticmethod
+    async def get_post_by_id(db:AsyncSession, post_id: int) -> Post:
         """Получает активный пост по ID"""
-        post = await self.db.get(Post, post_id)
+        post = await db.get(Post, post_id)
 
         if not post:
             raise HTTPException(
@@ -55,8 +54,9 @@ class PostService:
 
         return post
 
+    @staticmethod
     async def update_post(
-        self,
+        db: AsyncSession,
         post_id: int,
         author_id: int,
         title: str | None = None,
@@ -65,7 +65,7 @@ class PostService:
         image_url: str | None = None,
     ) -> Post:
         """Обновляет пост"""
-        post = await self.get_post_by_id(post_id)
+        post = await PostService.get_post_by_id(db, post_id)
 
         if post.author_id != author_id:
             raise HTTPException(
@@ -74,7 +74,7 @@ class PostService:
             )
 
         if category_id is not None:
-            category = await self.db.get(Category, category_id)
+            category = await db.get(Category, category_id)
             if not category:
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
@@ -89,14 +89,15 @@ class PostService:
         if image_url is not None:
             post.image_url = image_url
 
-        await self.db.commit()
-        await self.db.refresh(post)
+        await db.commit()
+        await db.refresh(post)
 
         return post
 
-    async def delete_post(self, post_id: int, author_id: int) -> None:
+    @staticmethod
+    async def delete_post(db: AsyncSession, post_id: int, author_id: int) -> None:
         """Фейковое удаление поста — перенос в deleted_posts"""
-        post = await self.get_post_by_id(post_id)
+        post = await PostService.get_post_by_id(db, post_id)
 
         if post.author_id != author_id:
             raise HTTPException(
@@ -115,12 +116,13 @@ class PostService:
             deleted_at=datetime.utcnow(),
         )
 
-        self.db.add(deleted_post)
-        await self.db.delete(post)
-        await self.db.commit()
+        db.add(deleted_post)
+        await db.delete(post)
+        await db.commit()
 
+    @staticmethod
     async def get_posts_list(
-        self,
+        db: AsyncSession,
         search: str | None = None,
         category_id: int | None = None,
         page: int = 1,
@@ -146,12 +148,12 @@ class PostService:
             query = query.order_by(Post.created_at.desc())
 
         count_query = select(func.count()).select_from(query.subquery())
-        total = await self.db.scalar(count_query)
+        total = await db.scalar(count_query)
 
         offset = (page - 1) * page_size
         query = query.order_by(Post.created_at.desc()).offset(offset).limit(page_size)
 
-        result = await self.db.execute(query)
+        result = await db.execute(query)
         posts = result.scalars().all()
 
         return posts, total or 0

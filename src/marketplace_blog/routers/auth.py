@@ -15,20 +15,22 @@ router = APIRouter(prefix="/auth", tags=["Аутентификация"])
 )
 async def register(user_data: UserRegister, db: AsyncSession = Depends(get_db)):
     """Регистрация нового пользователя"""
-    user_service = UserService(db)
-    new_user = await user_service.create_user(
-        email=user_data.email, username=user_data.username, password=user_data.password
+    new_user = await UserService.create_user(
+        db=db,
+        email=user_data.email,
+        username=user_data.username,
+        password=user_data.password
     )
     return new_user
 
 
 @router.post("/login")
 async def login(
-    user_data: UserLogin, response: JSONResponse, db: AsyncSession = Depends(get_db)
+    user_data: UserLogin, db: AsyncSession = Depends(get_db)
 ):
     """Аутентификация — выдаёт токен в cookie"""
-    user_service = UserService(db)
-    user = await user_service.get_user_by_email(user_data.email)
+
+    user = await UserService.get_user_by_email(db=db, email=user_data.email)
 
     if not user or not verify_password(user_data.password, user.hashed_password):
         raise HTTPException(

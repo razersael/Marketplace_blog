@@ -4,6 +4,7 @@ from fastapi import HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.marketplace_blog.config import settings
 from src.marketplace_blog.core.security import hash_password
 from src.marketplace_blog.models.user import User
 from src.marketplace_blog.tasks.email_tasks import send_welcome_email
@@ -12,31 +13,31 @@ from src.marketplace_blog.tasks.email_tasks import send_welcome_email
 class UserService:
     """Сервис для работы с пользователями. Содержит всю бизнес-логику."""
 
-    def __init__(self, db: AsyncSession):
-        self.db = db
-
-    async def _check_email_exists(self, email: str) -> bool:
+    @staticmethod
+    async def _check_email_exists(db: AsyncSession, email: str) -> bool:
         """Проверяет, существует ли пользователь с таким email."""
-        result = await self.db.execute(select(User).where(User.email == email))
+        result = await db.execute(select(User).where(User.email == email))
         return result.scalar_one_or_none() is not None
 
-    async def _check_username_exists(self, username: str) -> bool:
+    @staticmethod
+    async def _check_username_exists(db: AsyncSession, username: str) -> bool:
         """Проверяет, существует ли пользователь с таким username."""
-        result = await self.db.execute(select(User).where(User.username == username))
+        result = await db.execute(select(User).where(User.username == username))
         return result.scalar_one_or_none() is not None
 
-    async def create_user(self, email: str, username: str, password: str) -> User:
+    @staticmethod
+    async def create_user(db: AsyncSession, email: str, username: str, password: str) -> User:
         """
         Создаёт нового пользователя.
         Вся логика проверок и создания здесь.
         """
-        if await self._check_email_exists(email):
+        if await UserService._check_email_exists(db,email):
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Email already registered",
             )
 
-        if await self._check_username_exists(username):
+        if await UserService._check_username_exists(db,username):
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST, detail="Username already taken"
             )
@@ -45,16 +46,17 @@ class UserService:
 
         new_user = User(email=email, username=username, hashed_password=hashed_password)
 
-        self.db.add(new_user)
-        await self.db.commit()
-        await self.db.refresh(new_user)
+        db.add(new_user)
+        await db.commit()
+        await db.refresh(new_user)
 
-        if os.environ.get("TESTING") != "true":
+        if not settings.testing:
             send_welcome_email.delay(email, username)
 
         return new_user
 
-    async def get_user_by_email(self, email: str) -> User | None:
+    @staticmethod
+    async def get_user_by_email(db: AsyncSession, email: str) -> User | None:
         """Находит пользователя по email."""
-        result = await self.db.execute(select(User).where(User.email == email))
+        result = await db.execute(select(User).where(User.email == email))
         return result.scalar_one_or_none()

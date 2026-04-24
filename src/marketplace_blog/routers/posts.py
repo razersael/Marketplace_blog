@@ -21,11 +21,15 @@ async def get_posts_list(
     page: int = Query(1, ge=1, description="Номер страницы"),
     page_size: int = Query(10, ge=1, description="Элементов на странице (макс 50)"),
     db: AsyncSession = Depends(get_db),
+    user_id: int = Depends(get_current_user_id),
 ):
     """Получение списка постов (публичный, с пагинацией)"""
-    post_service = PostService(db)
-    posts, total = await post_service.get_posts_list(
-        search=search, category_id=category_id, page=page, page_size=page_size
+    posts, total = await PostService.get_posts_list(
+        db=db,
+        search=search,
+        category_id=category_id,
+        page=page,
+        page_size=page_size
     )
 
     max_page_size = 50
@@ -43,10 +47,9 @@ async def get_posts_list(
 
 
 @router.get("/{post_id}", response_model=PostResponse)
-async def get_post(post_id: int, db: AsyncSession = Depends(get_db)):
+async def get_post(post_id: int, db: AsyncSession = Depends(get_db), user_id: int = Depends(get_current_user_id)):
     """Получение одного поста (публичный)"""
-    post_service = PostService(db)
-    return await post_service.get_post_by_id(post_id)
+    return await PostService.get_post_by_id(db=db, post_id=post_id)
 
 
 @router.post("", response_model=PostResponse, status_code=status.HTTP_201_CREATED)
@@ -56,8 +59,8 @@ async def create_post(
     author_id: int = Depends(get_current_user_id),
 ):
     """Создание нового поста (только авторизованные)"""
-    post_service = PostService(db)
-    return await post_service.create_post(
+    return await PostService.create_post(
+        db=db,
         title=post_data.title,
         content=post_data.content,
         category_id=post_data.category_id,
@@ -74,8 +77,8 @@ async def update_post(
     author_id: int = Depends(get_current_user_id),
 ):
     """Обновление поста (только автор)"""
-    post_service = PostService(db)
-    return await post_service.update_post(
+    return await PostService.update_post(
+        db=db,
         post_id=post_id,
         author_id=author_id,
         title=post_data.title,
@@ -92,6 +95,8 @@ async def delete_post(
     author_id: int = Depends(get_current_user_id),
 ):
     """Фейковое удаление поста (только автор)"""
-    post_service = PostService(db)
-    await post_service.delete_post(post_id=post_id, author_id=author_id)
+    await PostService.delete_post(
+        db=db,
+        post_id=post_id,
+        author_id=author_id)
     return None

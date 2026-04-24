@@ -16,4 +16,4 @@ COPY src/ ./src/
 COPY alembic.ini ./
 COPY migrations/ ./migrations/
 
-CMD ["sh", "-c", "alembic upgrade head && uvicorn src.marketplace_blog.main:app --host 0.0.0.0 --port 8000"]CMD ["sh", "-c", "alembic upgrade head && uvicorn src.marketplace_blog.main:app --host 0.0.0.0 --port 8000"]
+CMD ["sh", "-c", "alembic upgrade head && uvicorn src.marketplace_blog.main:app --host 0.0.0.0 --port 8000"]
